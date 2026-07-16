@@ -11,21 +11,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - name: npm install (ignore system libvips)
-        working-directory: cloudfunctions/generateFlashcards
-        run: npm install --omit=dev
-        env:
-          SHARP_IGNORE_GLOBAL_LIBVIPS: true
-      - name: Verify
+      - name: Install sharp with bundled libvips
         working-directory: cloudfunctions/generateFlashcards
         run: |
-          echo "=== Sharp ==="
-          node -e "console.log(JSON.stringify(require('sharp').versions))"
-          echo "=== Vendor ==="
-          find node_modules/sharp/vendor -name '*.so*' 2>/dev/null | wc -l
-          find node_modules/sharp/vendor -maxdepth 3 -type f 2>/dev/null | head -20
-          echo "=== @img ==="
-          find node_modules/@img -name '*.node' -o -name '*.so*' 2>/dev/null
+          npm install --omit=dev
+          npm ls sharp
+          echo "--- vendor ---"
+          find node_modules/sharp -name '*.so*' 2>/dev/null | wc -l
+          find node_modules/@img -type d 2>/dev/null
+          echo "--- libvips package ---"
+          ls node_modules/@img/sharp-libvips-linux-x64/lib/ 2>/dev/null || echo "NOT FOUND"
+          echo "--- trying force install ---"
+          npm install @img/sharp-libvips-linux-x64 --no-save 2>/dev/null || true
+          find node_modules/@img/sharp-libvips-linux-x64 -name '*.so*' 2>/dev/null | wc -l
+          find node_modules/sharp -name '*.so*' 2>/dev/null | wc -l
       - name: Package
         working-directory: cloudfunctions/generateFlashcards
         run: zip -r node-modules.zip node_modules/
