@@ -1,28 +1,27 @@
- name: Build
+name: Build
 
-  on: workflow_dispatch
+on: [workflow_dispatch]
 
-  jobs:                                                                                                            
-    build:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-        - uses: actions/setup-node@v4
-          with:
-            node-version: '18'
-        - name: npm ci
-          working-directory: cloudfunctions/generateFlashcards
-          run: npm ci --omit=dev
-        - name: verify
-          working-directory: cloudfunctions/generateFlashcards
-          run: |
-            node -e "console.log(JSON.stringify(require('sharp').versions))"
-            find node_modules/sharp/vendor -name '*.so*' | wc -l
-        - name: package
-          working-directory: cloudfunctions/generateFlashcards
-          run: |
-            zip -r /tmp/pkg.zip node_modules/
-        - uses: actions/upload-artifact@v4
-          with:
-            name: node-modules
-            path: cloudfunctions/generateFlashcards/node_modules/
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: npm ci
+        working-directory: cloudfunctions/generateFlashcards
+        run: npm ci --omit=dev
+      - name: verify
+        working-directory: cloudfunctions/generateFlashcards
+        run: |
+          node -e "console.log(JSON.stringify(require("sharp").versions))"
+          find node_modules/sharp/vendor -name "*.so*" | wc -l
+      - name: package
+        working-directory: cloudfunctions/generateFlashcards
+        run: zip -r node-modules.zip node_modules/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: node-modules
+          path: cloudfunctions/generateFlashcards/node-modules.zip
