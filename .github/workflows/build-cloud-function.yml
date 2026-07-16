@@ -10,28 +10,30 @@ jobs:
     steps:
       - name: Install system deps
         run: |
-          apt-get update -qq
-          apt-get install -y -qq curl libvips-dev
+          apt-get update -qq && apt-get install -y -qq curl libvips-dev
+          echo "=== Find libvips ==="
+          find /usr -name "libvips*.so*" 2>/dev/null
+          echo "=== ldd after install ==="
+          ldd --version 2>/dev/null | head -1
       - name: Setup Node
-        run: |
-          curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-          apt-get install -y nodejs
-          node -v
+        run: curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && apt-get install -y nodejs
       - uses: actions/checkout@v4
-      - name: npm install & bundle
+      - name: npm install & bundle all .so
         working-directory: cloudfunctions/generateFlashcards
         run: |
           npm install --omit=dev
           VIPS_VER=$(ls node_modules/sharp/vendor/ | head -1)
-          if [ -n "$VIPS_VER" ]; then
-            mkdir -p node_modules/sharp/vendor/$VIPS_VER/lib
-            cp /usr/lib/x86_64-linux-gnu/libvips*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-            cp /usr/lib/x86_64-linux-gnu/libglib*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-            cp /usr/lib/x86_64-linux-gnu/libgobject*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-          fi
-          echo "=== so count ==="
+          mkdir -p node_modules/sharp/vendor/$VIPS_VER/lib
+          cp /usr/lib/x86_64-linux-gnu/libvips*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+          cp /usr/lib/x86_64-linux-gnu/libglib*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+          cp /usr/lib/x86_64-linux-gnu/libgobject*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+          cp /usr/lib/x86_64-linux-gnu/libgmodule*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+          cp /usr/lib/x86_64-linux-gnu/libgio*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+          echo "=== All .so ==="
+          find node_modules/sharp/vendor -type f | head -20
+          echo "=== Count ==="
           find node_modules/sharp -name '*.so*' | wc -l
-          node -e "require('sharp')" && echo "sharp OK"
+          node -e "require('sharp'); console.log('sharp OK')"
       - name: Package
         working-directory: cloudfunctions/generateFlashcards
         run: zip -r node-modules.zip node_modules/
