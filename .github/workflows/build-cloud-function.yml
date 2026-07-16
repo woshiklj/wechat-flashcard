@@ -1,65 +1,28 @@
-name: Build Cloud Function Dependencies (Linux x64)
+ name: Build
 
-  on:
-    workflow_dispatch:
-    push:
-      paths:                                                
-        - 'cloudfunctions/generateFlashcards/package.json'
+  on: workflow_dispatch
 
-  jobs:
+  jobs:                                                                                                            
     build:
       runs-on: ubuntu-latest
-
       steps:
-        - name: Checkout
-          uses: actions/checkout@v4
-
-        - name: Setup Node.js 18
-          uses: actions/setup-node@v4
+        - uses: actions/checkout@v4
+        - uses: actions/setup-node@v4
           with:
             node-version: '18'
-
-        - name: Install production dependencies
+        - name: npm ci
           working-directory: cloudfunctions/generateFlashcards
           run: npm ci --omit=dev
-
-        - name: Verify sharp & GLIBC compatibility
+        - name: verify
           working-directory: cloudfunctions/generateFlashcards
           run: |
-            echo "=== Platform ==="
-            uname -m
-            cat /etc/os-release 2>/dev/null | head -3
-            echo ""
-            echo "=== Sharp version ==="
-            node -e "console.log(JSON.stringify(require('sharp').versions, null, 2))"
-            echo ""
-            echo "=== libvips .so files ==="
-            find node_modules/sharp/vendor -name "*.so*" 2>/dev/null | wc -l
-            find node_modules/sharp/vendor -name "*.so*" 2>/dev/null | head -10
-            echo ""
-            echo "=== GLIBC check ==="
-            VIPS_LIB=$(find node_modules/sharp/vendor -name "libvips-cpp.so*" 2>/dev/null | head -1)
-            if [ -n "$VIPS_LIB" ]; then
-              echo "  libvips path: $VIPS_LIB"
-              strings "$VIPS_LIB" | grep "GLIBC_" | sort -V | tail -3 || true
-            fi
-            echo ""
-            echo "=== System GLIBC ==="
-            ldd --version 2>/dev/null | head -1 || true
-            echo ""
-            echo "If GLIBC > 2.17, may not work on CentOS 7."
-
-        - name: Package node_modules
+            node -e "console.log(JSON.stringify(require('sharp').versions))"
+            find node_modules/sharp/vendor -name '*.so*' | wc -l
+        - name: package
           working-directory: cloudfunctions/generateFlashcards
           run: |
-            zip -r cloud-function-node-modules.zip node_modules/ \
-              -x "node_modules/.cache/*" \
-              -x "node_modules/.package-lock.json"
-            ls -lh cloud-function-node-modules.zip
-
-        - name: Upload artifact
-          uses: actions/upload-artifact@v4
+            zip -r /tmp/pkg.zip node_modules/
+        - uses: actions/upload-artifact@v4
           with:
-            name: cloud-function-node-modules               
-            path: cloudfunctions/generateFlashcards/cloud-function-node-modules.zip
-            retention-days: 7
+            name: node-modules
+            path: cloudfunctions/generateFlashcards/node_modules/
