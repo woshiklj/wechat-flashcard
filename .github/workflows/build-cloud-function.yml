@@ -1,30 +1,37 @@
 name: Build
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
     steps:
+      - name: Install system deps
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq curl libvips-dev
+      - name: Setup Node
+        run: |
+          curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+          apt-get install -y nodejs
+          node -v
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-      - name: Install sharp with bundled libvips
+      - name: npm install & bundle
         working-directory: cloudfunctions/generateFlashcards
         run: |
           npm install --omit=dev
-          npm ls sharp
-          echo "--- vendor ---"
-          find node_modules/sharp -name '*.so*' 2>/dev/null | wc -l
-          find node_modules/@img -type d 2>/dev/null
-          echo "--- libvips package ---"
-          ls node_modules/@img/sharp-libvips-linux-x64/lib/ 2>/dev/null || echo "NOT FOUND"
-          echo "--- trying force install ---"
-          npm install @img/sharp-libvips-linux-x64 --no-save 2>/dev/null || true
-          find node_modules/@img/sharp-libvips-linux-x64 -name '*.so*' 2>/dev/null | wc -l
-          find node_modules/sharp -name '*.so*' 2>/dev/null | wc -l
+          VIPS_VER=$(ls node_modules/sharp/vendor/ | head -1)
+          if [ -n "$VIPS_VER" ]; then
+            mkdir -p node_modules/sharp/vendor/$VIPS_VER/lib
+            cp /usr/lib/x86_64-linux-gnu/libvips*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+            cp /usr/lib/x86_64-linux-gnu/libglib*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+            cp /usr/lib/x86_64-linux-gnu/libgobject*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+          fi
+          echo "=== so count ==="
+          find node_modules/sharp -name '*.so*' | wc -l
+          node -e "require('sharp')" && echo "sharp OK"
       - name: Package
         working-directory: cloudfunctions/generateFlashcards
         run: zip -r node-modules.zip node_modules/
