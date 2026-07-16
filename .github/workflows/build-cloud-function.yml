@@ -11,13 +11,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - run: npm install --omit=dev
+      - name: Install deps & libvips
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libvips-dev
         working-directory: cloudfunctions/generateFlashcards
-      - run: node -e 'console.log(JSON.stringify(require("sharp").versions))'
+      - name: npm install
+        run: npm install --omit=dev
         working-directory: cloudfunctions/generateFlashcards
-      - run: find node_modules/sharp/vendor -name '*.so*' | wc -l
+      - name: Verify
+        run: |
+          node -e "console.log(JSON.stringify(require('sharp').versions))"
+          ldd node_modules/@img/sharp-linux-x64/lib/sharp-linux-x64.node | grep vips
         working-directory: cloudfunctions/generateFlashcards
-      - run: zip -r node-modules.zip node_modules/
+      - name: Bundle libvips .so files
+        run: |
+          VIPS_VER=$(ls node_modules/sharp/vendor/ | head -1)
+          mkdir -p node_modules/sharp/vendor/$VIPS_VER/lib
+          for lib in $(ldd node_modules/@img/sharp-linux-x64/lib/sharp-linux-x64.node | grep '=> /' | awk '{print $3}' | sort -u); do
+            cp -v "$lib" node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
+          done
+          find node_modules/sharp/vendor -name "*.so*" | wc -l
+        working-directory: cloudfunctions/generateFlashcards
+      - name: Package
+        run: zip -r node-modules.zip node_modules/
         working-directory: cloudfunctions/generateFlashcards
       - uses: actions/upload-artifact@v4
         with:
