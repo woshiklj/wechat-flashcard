@@ -5,34 +5,32 @@ on: workflow_dispatch
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ubuntu:20.04
     steps:
-      - name: Install system deps
-        run: |
-          apt-get update -qq && apt-get install -y -qq curl libvips-dev
-          echo "=== Find libvips ==="
-          find /usr -name "libvips*.so*" 2>/dev/null
-          echo "=== ldd after install ==="
-          ldd --version 2>/dev/null | head -1
-      - name: Setup Node
-        run: curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && apt-get install -y nodejs
       - uses: actions/checkout@v4
-      - name: npm install & bundle all .so
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: npm install
+        working-directory: cloudfunctions/generateFlashcards
+        run: npm install --omit=dev
+      - name: Download full libvips vendor
         working-directory: cloudfunctions/generateFlashcards
         run: |
-          npm install --omit=dev
-          VIPS_VER=$(ls node_modules/sharp/vendor/ | head -1)
+          VIPS_MINOR=$(node -e "console.log(require('sharp').versions.vips.split('.')[2])")
+          VIPS_VER=$(ls node_modules/sharp/vendor 2>/dev/null | head -1 || echo "8.15.$VIPS_MINOR")
+          echo "libvips version: $VIPS_VER"
           mkdir -p node_modules/sharp/vendor/$VIPS_VER/lib
-          cp /usr/lib/x86_64-linux-gnu/libvips*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-          cp /usr/lib/x86_64-linux-gnu/libglib*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-          cp /usr/lib/x86_64-linux-gnu/libgobject*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-          cp /usr/lib/x86_64-linux-gnu/libgmodule*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-          cp /usr/lib/x86_64-linux-gnu/libgio*.so* node_modules/sharp/vendor/$VIPS_VER/lib/ 2>/dev/null || true
-          echo "=== All .so ==="
-          find node_modules/sharp/vendor -type f | head -20
-          echo "=== Count ==="
-          find node_modules/sharp -name '*.so*' | wc -l
+          cd node_modules/sharp/vendor/$VIPS_VER/lib
+          curl -L "https://github.com/lovell/sharp-libvips/releases/download/v$VIPS_VER/libvips-$VIPS_VER-linux-x64.tar.br" -o vendor.tar.br 2>/dev/null
+          if [ -s vendor.tar.br ]; then
+            brotli -d vendor.tar.br && tar xf vendor.tar && rm vendor.tar vendor.tar.br
+            echo "Vendor extracted: $(find . -name '*.so*' | wc -l) .so files"
+          else
+            echo "WARNING: Could not download vendor, falling back to system libvips"
+            sudo apt-get update -qq && sudo apt-get install -y -qq libvips-dev
+            VIPS_LIB=$(ldd ../../../@img/sharp-linux-x64/lib/sharp-linux-x64.node | grep vips | awk '{print $3}')
+            cp $VIPS_LIB . 2>/dev/null || true
+          fi
           node -e "require('sharp'); console.log('sharp OK')"
       - name: Package
         working-directory: cloudfunctions/generateFlashcards
